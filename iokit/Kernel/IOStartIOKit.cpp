@@ -53,128 +53,222 @@ OSSet *          gIORemoveOnReadProperties;
 
 extern "C" {
 
-extern void OSlibkernInit (void);
-
-void iokit_post_constructor_init(void);
+    
+    extern void OSlibkernInit (void);
+    
+    void iokit_post_constructor_init(void);
+    
 
 #include <kern/clock.h>
 #include <sys/time.h>
 
+    
 void IOKitInitializeTime( void )
-{
-	mach_timespec_t		t;
-
-	t.tv_sec = 30;
-	t.tv_nsec = 0;
-	IOService::waitForService(
-		IOService::resourceMatching("IORTC"), &t );
+    {
+       mach_timespec_t		t;
+        
+        t.tv_sec = 30;
+        t.tv_nsec = 0;
+        IOService::waitForService(
+                                  IOService::resourceMatching("IORTC"), &t );
 #if defined(__i386__) || defined(__x86_64__)
-	IOService::waitForService(
-		IOService::resourceMatching("IONVRAM"), &t );
+        IOService::waitForService(
+                                  IOService::resourceMatching("IONVRAM"), &t );
 #endif
 
-    clock_initialize_calendar();
 }
 
-void IOKitResetTime( void )
-{
-    clock_sec_t		secs;
-	clock_usec_t	microsecs;
 
-    clock_initialize_calendar();
-
-    clock_get_calendar_microtime(&secs, &microsecs);
-    gIOLastWakeTime.tv_sec  = secs;
-    gIOLastWakeTime.tv_usec = microsecs;
-
-    IOService::updateConsoleUsers(NULL, kIOMessageSystemHasPoweredOn);
+	clock_initialize_calendar();
 }
 
-void iokit_post_constructor_init(void)
-{
-    IORegistryEntry *		root;
-    OSObject *			obj;
-
-    root = IORegistryEntry::initialize();
-    assert( root );
-    IOService::initialize();
-    IOCatalogue::initialize();
-    IOStatistics::initialize();
-    OSKext::initialize();
-    IOUserClient::initialize();
-    IOMemoryDescriptor::initialize();
-    IORootParent::initialize();
-
-    // Initializes IOPMinformeeList class-wide shared lock
-    IOPMinformeeList::getSharedRecursiveLock();
-
-    obj = OSString::withCString( version );
-    assert( obj );
-    if( obj ) {
-        root->setProperty( kIOKitBuildVersionKey, obj );
-	obj->release();
+    void IOKitResetTime( void )
+    {
+        clock_sec_t		secs;
+        clock_usec_t	microsecs;
+        
+        clock_initialize_calendar();
+        
+        clock_get_calendar_microtime(&secs, &microsecs);
+        gIOLastWakeTime.tv_sec  = secs;
+        gIOLastWakeTime.tv_usec = microsecs;
+        
+        IOService::updateConsoleUsers(NULL, kIOMessageSystemHasPoweredOn);
     }
-    obj = IOKitDiagnostics::diagnostics();
-    if( obj ) {
-        root->setProperty( kIOKitDiagnosticsKey, obj );
-	obj->release();
-    }
-}
-
-// From <osfmk/kern/debug.c>
-extern int debug_mode;
-
-/*****
- * Pointer into bootstrap KLD segment for functions never used past startup.
- */
-void (*record_startup_extensions_function)(void) = 0;
-
-void StartIOKit( void * p1, void * p2, void * p3, void * p4 )
-{
-    IOPlatformExpertDevice *	rootNub;
-    int				debugFlags;
-
-    if( PE_parse_boot_argn( "io", &debugFlags, sizeof (debugFlags) ))
-		gIOKitDebug = debugFlags;
-	
-    if( PE_parse_boot_argn( "iotrace", &debugFlags, sizeof (debugFlags) ))
-		gIOKitTrace = debugFlags;
-	
-	// Compat for boot-args
-	gIOKitTrace |= (gIOKitDebug & kIOTraceCompatBootArgs);
-	
-    // Check for the log synchronous bit set in io
-    if (gIOKitDebug & kIOLogSynchronous)
-        debug_mode = true;
-
-    //
-    // Have to start IOKit environment before we attempt to start
-    // the C++ runtime environment.  At some stage we have to clean up
-    // the initialisation path so that OS C++ can initialise independantly
-    // of iokit basic service initialisation, or better we have IOLib stuff
-    // initialise as basic OS services.
-    //
-    IOLibInit(); 
-    OSlibkernInit();
-
-    gIOProgressBackbufferKey  = OSSymbol::withCStringNoCopy(kIOProgressBackbufferKey);
-    gIORemoveOnReadProperties = OSSet::withObjects((const OSObject **) &gIOProgressBackbufferKey, 1);
-
-    interruptAccountingInit();
-
-    rootNub = new IOPlatformExpertDevice;
-
-    if( rootNub && rootNub->initWithArgs( p1, p2, p3, p4)) {
-        rootNub->attach( 0 );
-
-       /* If the bootstrap segment set up a function to record startup
-        * extensions, call it now.
-        */
-        if (record_startup_extensions_function) {
-            record_startup_extensions_function();
+    
+    /* kaitek / qoopz: blacklist of common kexts that are known to be problematic or undesirable
+     * for virtually all non-apple hardware. see notes in StartIOKit(). */
+    /* AnV - Added configurable blacklistmods */
+    boolean_t blacklistEnabled = TRUE;
+    boolean_t confblacklistEnabled = FALSE;
+    blacklist_mod_t blacklistMods[] = {
+        { "com.apple.driver.AppleIntelMeromProfile",	0 },
+        { "com.apple.driver.AppleIntelNehalemProfile",	0 },
+        { "com.apple.driver.AppleIntelPenrynProfile",	0 },
+        { "com.apple.driver.AppleIntelYonahProfile",	0 },
+        { "com.apple.driver.AppleIntelCPUPowerManagement",	0 }, // must be added to use in 10.6.1+
+        { "com.apple.iokit.CHUDKernLib", 			0 },
+        { "com.apple.iokit.CHUDProf",			0 },
+        { "com.apple.iokit.CHUDUtils",			0 },
+        /*{ "com.apple.driver.AppleEFIRuntime",	    0 },*/
+        { NULL,						0 }
+    };
+    blacklist_confmod_t confblacklistMods[16];
+    uint32_t confblacklistCount = 0;
+    
+    /* AnV - This function propagates a custom blacklist argument */
+    void SetBlacklistArg(uint32_t bn, char *name, uint32_t start, uint32_t stop)
+    {
+        int i = 0;
+        uint32_t current = start;
+        
+        while ((i < 256) && (current <= stop))
+        {
+            confblacklistMods[bn].name[i] = name[current];
+            
+            ++i;
+            ++current;
         }
 
-        rootNub->registerService();
+    }
+    
+    void iokit_post_constructor_init(void)
+    {
+        IORegistryEntry *		root;
+        OSObject *			obj;
+        
+        uint32_t			bootArg;
+        char                confArgs[4120];
+        uint32_t            confStart = 0;
+        uint32_t            confStop = 0;
+        uint32_t            confLen = 0;
+        uint32_t            confCur = 0;
+        /* kaitek: todo: implement some kind of mechanism whereby the user can specify a
+         * custom list of kexts to be blacklisted. perhaps categories with the current
+         * list designated "default" and additional categories like "gfx", etc. */
+        /* AnV - Added configurable blacklist mods */
+        
+        if (PE_parse_boot_argn("-noblacklist", &bootArg, sizeof(&bootArg)))/* && !bootArg)*/ {
+            blacklistEnabled = FALSE;
+            printf("warning: disabling kext blacklist\n");
+        }
+        
+        if (PE_parse_boot_argn("blockkexts", confArgs, sizeof(confArgs)))
+        {
+            //printf("BLDEBUG: blockkext found, arguments: %s\n", confArgs);
+            confLen = strlen(confArgs);
+            confblacklistCount = 0;
+            
+            while (confCur < confLen)
+            {
+                if ((confArgs[confCur] == ',') && (confblacklistCount < 16))
+                {
+                    confStop = confCur - 1;
+                    SetBlacklistArg(confblacklistCount, confArgs, confStart, confStop);
+                    
+                    //printf("BLDEBUG: kext %u set for blocking, name: %s\n", confblacklistCount, confblacklistMods[confblacklistCount].name);
+                    
+                    ++confblacklistCount;
+                    confStart = confCur + 1;
+                }
+                
+                ++confCur;
+            }
+            
+            if (confLen == 0)
+            {
+                confblacklistEnabled = FALSE;
+            } else {
+                if ((confblacklistCount < 16) && (confStart < confLen))
+                {
+                    confStop = confLen;
+                    SetBlacklistArg(confblacklistCount, confArgs, confStart, confStop);
+                    
+                    //printf("BLDEBUG: kext %u set for blocking, name: %s\n", confblacklistCount, confblacklistMods[confblacklistCount].name);
+                    
+                    ++confblacklistCount;
+                }
+                
+                confblacklistEnabled = TRUE;
+            }
+        }
+        
+        root = IORegistryEntry::initialize();
+        assert( root );
+        IOService::initialize();
+        IOCatalogue::initialize();
+        IOStatistics::initialize();
+        OSKext::initialize();
+        IOUserClient::initialize();
+        IOMemoryDescriptor::initialize();
+        IORootParent::initialize();
+        
+        // Initializes IOPMinformeeList class-wide shared lock
+        IOPMinformeeList::getSharedRecursiveLock();
+        
+        obj = OSString::withCString( version );
+        assert( obj );
+        if( obj ) {
+            root->setProperty( kIOKitBuildVersionKey, obj );
+            obj->release();
+        }
+        obj = IOKitDiagnostics::diagnostics();
+        if( obj ) {
+            root->setProperty( kIOKitDiagnosticsKey, obj );
+            obj->release();
+        }
+    }
+    
+    // From <osfmk/kern/debug.c>
+    extern int debug_mode;
+    
+    /*****
+     * Pointer into bootstrap KLD segment for functions never used past startup.
+     */
+    void (*record_startup_extensions_function)(void) = 0;
+    
+    void StartIOKit( void * p1, void * p2, void * p3, void * p4 )
+    {
+        IOPlatformExpertDevice *	rootNub;
+        int				debugFlags;
+        
+        if( PE_parse_boot_argn( "io", &debugFlags, sizeof (debugFlags) ))
+            gIOKitDebug = debugFlags;
+        
+        if( PE_parse_boot_argn( "iotrace", &debugFlags, sizeof (debugFlags) ))
+            gIOKitTrace = debugFlags;
+        
+        // Compat for boot-args
+        gIOKitTrace |= (gIOKitDebug & kIOTraceCompatBootArgs);
+        
+        // Check for the log synchronous bit set in io
+        if (gIOKitDebug & kIOLogSynchronous)
+            debug_mode = true;
+        
+        //
+        // Have to start IOKit environment before we attempt to start
+        // the C++ runtime environment.  At some stage we have to clean up
+        // the initialisation path so that OS C++ can initialise independantly
+        // of iokit basic service initialisation, or better we have IOLib stuff
+        // initialise as basic OS services.
+        //
+        IOLibInit();
+        OSlibkernInit();
+        
+        rootNub = new IOPlatformExpertDevice;
+        
+        if( rootNub && rootNub->initWithArgs( p1, p2, p3, p4)) {
+            rootNub->attach( 0 );
+            
+            /* If the bootstrap segment set up a function to record startup
+             * extensions, call it now.
+             */
+            if (record_startup_extensions_function) {
+                record_startup_extensions_function();
+            }
+            
+            rootNub->registerService();
+            
 
 #if !NO_KEXTD
        /* Add a busy count to keep the registry busy until kextd has
@@ -184,25 +278,25 @@ void StartIOKit( void * p1, void * p2, void * p3, void * p4 )
         */
         IOService::getServiceRoot()->adjustBusy(1);
 #endif
+		}
     }
 }
 
-void
-IORegistrySetOSBuildVersion(char * build_version)
-{
-    IORegistryEntry * root = IORegistryEntry::getRegistryRoot();
-
-    if (root) {
-        if (build_version) {
-            root->setProperty(kOSBuildVersionKey, build_version);
-        } else {
-            root->removeProperty(kOSBuildVersionKey);
-        }
-    }
-
-    return;
-}
-
+    void
+    IORegistrySetOSBuildVersion(char * build_version)
+    {
+        IORegistryEntry * root = IORegistryEntry::getRegistryRoot();
+        
+        if (root) {
+            if (build_version) {
+                root->setProperty(kOSBuildVersionKey, build_version);
+            } else {
+                root->removeProperty(kOSBuildVersionKey);
+            }
+         }
+        
+        return;
+     }
 void
 IORecordProgressBackbuffer(void * buffer, size_t size, uint32_t theme)
 {
