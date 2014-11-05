@@ -418,7 +418,7 @@ mac_policy_initmach(void)
 /*
  * BSD startup.
  */
-void
+static __unused void
 mac_policy_initbsd(void)
 {
 	struct mac_policy_conf *mpc;

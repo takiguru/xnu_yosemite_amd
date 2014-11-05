@@ -34,4 +34,4 @@
 #error architecture not supported
 #endif
 
-#endif /* _MACH_MACHINE_PROFILE_MD_H_ */
+#endif /* _MACH_MACHINE_PROFILE_MD_H */
