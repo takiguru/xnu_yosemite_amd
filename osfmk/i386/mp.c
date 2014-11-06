@@ -1058,7 +1058,7 @@ mp_cpus_NMIPI(cpumask_t cpu_mask) {
 }
 
 #if MACH_ASSERT
-static inline boolean_t
+static __unused inline boolean_t
 mp_call_head_is_locked(mp_call_queue_t *cqp)
 {
 	return !ml_get_interrupts_enabled() &&
