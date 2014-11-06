@@ -302,7 +302,7 @@ struct bondport_s {
 static int bond_get_status(ifbond_ref ifb, struct if_bond_req * ibr_p, 
 			   user_addr_t datap);
 
-static __unused__inline__ int
+static __unused __inline__ int
 ifbond_flags_if_detaching(ifbond_ref ifb)
 {
     return ((ifb->ifb_flags & IFBF_IF_DETACHING) != 0);
@@ -315,7 +315,7 @@ ifbond_flags_set_if_detaching(ifbond_ref ifb)
     return;
 }
 
-static _inline__ int
+static __inline__ int
 ifbond_flags_lladdr(ifbond_ref ifb)
 {
     return ((ifb->ifb_flags & IFBF_LLADDR) != 0);
