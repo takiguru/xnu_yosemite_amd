@@ -581,6 +581,7 @@ nanoseconds_to_absolutetime(
     if (nanoseconds == ~(0ULL))
         *result = 2ULL;
     else
+        *result = nanoseconds;
 }
 
 void

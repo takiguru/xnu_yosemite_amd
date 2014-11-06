@@ -543,7 +543,7 @@ cpuid_set_cache_info( i386_cpu_info_t * info_p )
 	}
 	DBG("\n");
 }
-
+/*
 static uint32_t amdGetAssociativity(uint32_t flag)
 {
     uint32_t asso= 0;
@@ -604,7 +604,7 @@ static uint32_t amdGetAssociativity(uint32_t flag)
     return asso;
     
 }
-
+*/
 #define bit(n)		(1U << (n))
 #define bitmask(h,l)		((bit(h)|(bit(h)-1)) & ~(bit(l)-1))
 #define bitfield(x,h,l)	((((x) & bitmask(h,l)) >> l))
@@ -655,7 +655,7 @@ get_amd_cache_info(i386_cpu_info_t *info_p)
         switch (info_p->cpuid_family)
         {
                 
-            case K8_FAMILY:
+            /* case K8_FAMILY:
             {
                 for ( i = 1; i<4 ; i++)
                 {
@@ -731,7 +731,7 @@ get_amd_cache_info(i386_cpu_info_t *info_p)
                             
                             if(type == L2U)
                             {
-                                /* L2 cache is in KB units, reported per-core */
+                                // L2 cache is in KB units, reported per-core
                                 cpuid_fn(0x80000006, reg) ;
                                 
                                 cache_size = bitfield(reg[ecx],31,16) * 1024;
@@ -776,9 +776,10 @@ get_amd_cache_info(i386_cpu_info_t *info_p)
                 }
             }
                 break;
-                
+             */
             case K10_FAMILY:
             case 0x14:
+            
             case 0x12:
             {
                 
@@ -788,12 +789,7 @@ get_amd_cache_info(i386_cpu_info_t *info_p)
                         case 1:
                         {
                             cache_level = 1;
-                            
-                            type = 1 == 1 ? L1D :
-                            Lnone;
-                            
-                            if(type == L1D)
-                            {
+
                                 cpuid_fn(0x80000005, reg) ;
                                 
                                 cache_size =   bitfield(reg[ecx],31,24) * 1024;
@@ -813,18 +809,13 @@ get_amd_cache_info(i386_cpu_info_t *info_p)
                                 
                                 if ( colors > vm_cache_geometry_colors )
                                     vm_cache_geometry_colors = colors ;
-                            }
+                            
                         }
                             break;
                         case 2:
                         {
                             cache_level = 1;
-                            
-                            type = 2 == 2 ? L1I :
-                            Lnone;
-                            
-                            if(type == L1I)
-                            {
+   
                                 cpuid_fn(0x80000005, reg) ;
                                 
                                 cache_size = bitfield(reg[edx],31,24) * 1024;
@@ -844,24 +835,20 @@ get_amd_cache_info(i386_cpu_info_t *info_p)
                                 
                                 if ( colors > vm_cache_geometry_colors )
                                     vm_cache_geometry_colors = colors ;
-                                
-                            }
+
                         }
                             break;
                         case 3:
                         {
                             cache_level = 2;
-                            type = 3 == 3 ? L2U :
-                            Lnone;
-                            if(type == L2U)
-                            {
-                                /* L2 cache is in KB units, reported per-core */
+
+                                // L2 cache is in KB units, reported per-core
                                 cpuid_fn(0x80000006, reg) ;
                                 
                                 cache_size = bitfield(reg[ecx],31,16) * 1024;
                                 cache_linesize = bitfield(reg[ecx],7,0);
                                 cache_partitions	= bitfield32(reg[ecx], 11, 8);
-                                cache_associativity = amdGetAssociativity(extractBitField(reg[ecx],4,12));
+                                //cache_associativity = amdGetAssociativity(extractBitField(reg[ecx],4,12));
                                 
                                 cache_sets = cache_size / (cache_partitions *cache_linesize * cache_associativity );
                                 
@@ -887,7 +874,7 @@ get_amd_cache_info(i386_cpu_info_t *info_p)
                                 
                                 if ( colors > vm_cache_geometry_colors )
                                     vm_cache_geometry_colors = colors ;
-                            }
+
                         }
                             break;
                         case 4:
@@ -900,17 +887,13 @@ get_amd_cache_info(i386_cpu_info_t *info_p)
                             //  info_p->cache_partitions[type]	= 0;
                             //} else
                             //{
-                            type = 3 == 3 ? L3U :
-                            Lnone;
-                            
-                            if(type == L3U)
-                            {
+
                                 cache_level = 3;
                                 cpuid_fn(0x80000006, reg) ;
                                 
                                 cache_size = bitfield(reg[edx],31,18) * 524288;
                                 cache_linesize = bitfield(reg[edx],7,0);
-                                cache_associativity = amdGetAssociativity(extractBitField(reg[edx],4,12));
+                                //cache_associativity = amdGetAssociativity(extractBitField(reg[edx],4,12));
                                 cache_partitions	= bitfield32(reg[edx], 11, 8);
                                 //cache_associativity	= 1ul << (cache_associativity / 2);
                                 if(cache_size == 0) {
@@ -926,7 +909,7 @@ get_amd_cache_info(i386_cpu_info_t *info_p)
                                     if ( colors > vm_cache_geometry_colors )
                                         vm_cache_geometry_colors = colors ;
                                     
-                                } else {
+ 
                                     cache_sets = cache_size / (cache_partitions *cache_linesize * cache_associativity );
                                     
                                     info_p->cache_linesize = cache_linesize;
@@ -940,7 +923,7 @@ get_amd_cache_info(i386_cpu_info_t *info_p)
                                     if ( colors > vm_cache_geometry_colors )
                                         vm_cache_geometry_colors = colors ;
                                     
-                                }
+                                
                             }
                         }
                             break;

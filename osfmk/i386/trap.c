@@ -111,8 +111,8 @@
 
 extern void throttle_lowpri_io(int);
 extern void kprint_state(x86_saved_state64_t *saved_state);
-extern unsigned char opemu_ktrap(x86_saved_state_t *state);
-extern void opemu_utrap(x86_saved_state_t *state);
+//extern unsigned char opemu_ktrap(x86_saved_state_t *state);
+//extern void opemu_utrap(x86_saved_state_t *state);
 
 /*
  * Forward declarations
@@ -761,8 +761,8 @@ FALL_THROUGH:
         case T_INVALID_OPCODE:
             {
             /* Sinetek: we'll handle this. */
-              if(opemu_ktrap(state))
-                return;
+            //  if(opemu_ktrap(state))
+                printf("sinetekes szar");
              }
             
 		 
@@ -1072,8 +1072,8 @@ user_trap(
 		break;
 
 	    case T_INVALID_OPCODE:
-            opemu_sysenter(saved_state);
-            opemu_utrap(saved_state);
+            //opemu_sysenter(saved_state);
+            //opemu_utrap(saved_state);
 		exc = EXC_BAD_INSTRUCTION;
 		code = EXC_I386_INVOP;
 		break;

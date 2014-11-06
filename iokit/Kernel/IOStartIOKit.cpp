@@ -76,9 +76,6 @@ void IOKitInitializeTime( void )
                                   IOService::resourceMatching("IONVRAM"), &t );
 #endif
 
-}
-
-
 	clock_initialize_calendar();
 }
 
@@ -280,7 +277,7 @@ void IOKitInitializeTime( void )
 #endif
 		}
     }
-}
+
 
     void
     IORegistrySetOSBuildVersion(char * build_version)
